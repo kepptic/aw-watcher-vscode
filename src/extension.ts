@@ -13,6 +13,7 @@ import { AWClient, IAppEditorEvent } from "../aw-client-js/src/aw-client";
 import { hostname } from "os";
 import { API, GitExtension, Repository } from "./git";
 import { basename, relative } from "path";
+import * as vscode from "vscode";
 
 // The vscode type declarations in this project are old (1.x).
 // Terminal APIs (activeTerminal, terminals, onDidChangeActiveTerminal, onDidOpenTerminal)
@@ -279,7 +280,14 @@ class ActivityWatch {
       project: projectName || "unknown",
       file: filePath || "unknown",
       branch: branch,
+      // Editor identification (PR #39 — dynamic, supports Cursor/Windsurf/forks)
+      editor: (vscode as any).env?.appName || "VS Code",
     };
+
+    // Workspace name from .code-workspace file (PR #36)
+    if (workspace.name) {
+      data.workspace = workspace.name;
+    }
 
     // Relative file path (cleaner than absolute)
     if (filePath && projectPath) {
