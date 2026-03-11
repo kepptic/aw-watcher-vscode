@@ -58,6 +58,7 @@ class ActivityWatch {
 
   // Cache PID -> cwd for terminals without shellIntegration
   private _pidCwdCache: Map<number, { cwd: string; time: number }> = new Map();
+  private _heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor() {
     this._bucket = {
@@ -105,6 +106,15 @@ class ActivityWatch {
 
     // Window focus events
     window.onDidChangeWindowState(this._onEvent, this, subscriptions);
+
+    // Periodic heartbeat every 5s to build event duration via pulse merge.
+    // Without this, events stay at 0 duration when the user isn't actively
+    // typing or switching editors.
+    this._heartbeatTimer = setInterval(() => {
+      if (window.state.focused) {
+        this._onEvent();
+      }
+    }, 5000);
 
     this._disposable = Disposable.from(...subscriptions);
   }
@@ -164,6 +174,7 @@ class ActivityWatch {
   }
 
   public dispose() {
+    if (this._heartbeatTimer) clearInterval(this._heartbeatTimer);
     this._disposable.dispose();
   }
 
@@ -275,10 +286,12 @@ class ActivityWatch {
     const filePath = this._getFilePath();
     const branch = this._getCurrentBranch() || "unknown";
 
+    // When terminal is focused (no active editor), fall back to project info
+    const isTerminal = !editor && win.activeTerminal;
     const data: { [k: string]: any } = {
-      language: this._getFileLanguage() || "unknown",
+      language: this._getFileLanguage() || (isTerminal ? "terminal" : "unknown"),
       project: projectName || "unknown",
-      file: filePath || "unknown",
+      file: filePath || (projectName ? `${projectName} (terminal)` : "unknown"),
       branch: branch,
       // Editor identification (PR #39 — dynamic, supports Cursor/Windsurf/forks)
       editor: (vscode as any).env?.appName || "VS Code",
